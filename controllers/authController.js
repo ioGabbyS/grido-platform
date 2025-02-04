@@ -1,33 +1,30 @@
-// authController.js
-const jwt = require('jsonwebtoken');
-const bcrypt = require('bcrypt');
 const User = require('../models/User');
+const jwt = require('jsonwebtoken');
 
-const register = async (req, res) => {
-  const { dni, nombre, email, password } = req.body;
+// Registro de usuario
+exports.register = async (req, res) => {
   try {
-    const hashedPassword = await bcrypt.hash(password, 10);
-    const nuevoUsuario = new User({ dni, nombre, email, password: hashedPassword, puntos: 0 });
-    await nuevoUsuario.save();
-    res.status(201).send({ mensaje: 'Usuario registrado correctamente' });
+    const { email, password } = req.body;
+    const user = await User.create({ email, password });
+    res.status(201).json({ id: user._id, email: user.email });
   } catch (error) {
-    res.status(400).send({ mensaje: 'Error al registrar usuario', error });
+    res.status(400).json({ message: error.message });
   }
 };
 
-const login = async (req, res) => {
-  const { dni, password } = req.body;
-  try {
-    const usuario = await User.findOne({ dni });
-    if (usuario && await bcrypt.compare(password, usuario.password)) {
-      const token = jwt.sign({ id: usuario._id }, 'secreto', { expiresIn: '1h' });
-      res.send({ mensaje: 'Inicio de sesión exitoso', token });
-    } else {
-      res.status(401).send({ mensaje: 'DNI o contraseña incorrectos' });
-    }
-  } catch (error) {
-    res.status(500).send({ mensaje: 'Error al iniciar sesión', error });
+// Login
+exports.login = async (req, res) => {
+  const { email, password } = req.body;
+  const user = await User.findOne({ email });
+
+  if (user && (await bcrypt.compare(password, user.password))) {
+    res.json({
+      id: user._id,
+      email: user.email,
+      points: user.points,
+      token: jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: '30d' })
+    });
+  } else {
+    res.status(401).json({ message: 'Credenciales inválidas' });
   }
 };
-
-module.exports = { register, login };
